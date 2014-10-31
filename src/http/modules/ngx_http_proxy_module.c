@@ -3284,6 +3284,52 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return "unknown parameter in proxy_pass";
         }
     }
+    
+    for (i = 2; i < cf->args->nelts; i++) {
+
+        if (ngx_strncmp(value[i].data, "dynamic_resolve", 15) == 0) {
+
+            plcf->upstream.dyn_resolve = 1;
+
+            continue;
+        }
+
+        if (ngx_strncmp(value[i].data, "dynamic_fail_timeout=", 21) == 0) {
+
+            s.len = value[i].len - 21;
+            s.data = &value[i].data[21];
+
+            fail_timeout = ngx_parse_time(&s, 1);
+
+            if (fail_timeout == (time_t) NGX_ERROR) {
+                return "invalid fail_timeout";
+            }
+
+            plcf->upstream.dyn_fail_timeout = fail_timeout;
+
+            continue;
+        }
+
+        if (ngx_strncmp(value[i].data, "dynamic_fallback=", 17) == 0) {
+
+            s.len = value[i].len - 17;
+            s.data = &value[i].data[17];
+
+            if (ngx_strncmp(s.data, "next", 4) == 0) {
+                fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_NEXT;
+            } else if (ngx_strncmp(s.data, "stale", 5) == 0) {
+                fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_STALE;
+            } else if (ngx_strncmp(s.data, "shutdown", 8) == 0) {
+                fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_SHUTDOWN;
+            } else {
+                return "invalid fallback action";
+            }
+
+            plcf->upstream.dyn_fallback = fallback;
+
+            continue;
+        }
+    }
 
     n = ngx_http_script_variables_count(url);
 
@@ -3352,13 +3398,14 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (plcf->upstream.dyn_resolve == 1) {
         uscf = plcf->upstream.upstream;
 
+#if (NGX_HTTP_UPSTREAM_CHECK)
         if (ngx_http_upstream_check_is_set(uscf)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                  "dynamic resolve could not be enabled "
                  "with upstream check also enabled");
             return NGX_CONF_ERROR;
         }
-
+#endif
         if (uscf->servers) {
             server = uscf->servers->elts;
             for (i = 0; i < uscf->servers->nelts; i++) {

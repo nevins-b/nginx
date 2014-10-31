@@ -55,6 +55,8 @@ ngx_http_upstream_init_round_robin(ngx_conf_t *cf,
     us->peer.init = ngx_http_upstream_init_round_robin_peer;
     us->peer.reinit_upstream = ngx_http_upstream_reinit_round_robin;
 
+    server = NULL;
+
     if (us->servers) {
         server = us->servers->elts;
 
