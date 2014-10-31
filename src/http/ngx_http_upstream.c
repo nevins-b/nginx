@@ -1912,17 +1912,18 @@ ngx_http_upstream_dyn_resolve_handler(ngx_resolver_ctx_t *ctx)
     }
 
     ngx_resolve_name_done(ctx);
+    u->dyn_resolve_ctx = NULL;
 
     ngx_http_upstream_connect(r, u);
 }
 
 static ngx_int_t
 ngx_http_upstream_connect_and_resolve_peer(ngx_peer_connection_t *pc,
-        void *data)
+        ngx_http_request_t *r)
 {
     ngx_http_core_loc_conf_t       *clcf;
     ngx_resolver_ctx_t             *ctx, temp;
-    ngx_http_request_t              *r = data;
+    ngx_http_upstream_t            *u;
     int                             rc;
 
     if (pc->resolved == NGX_HTTP_UPSTREAM_DR_OK_NOT_UP) {
@@ -2008,6 +2009,7 @@ failed:
         return _ngx_event_connect_peer(pc);
     }
 
+    u = r->upstream;
     ctx->name = *pc->host;
     ctx->handler = ngx_http_upstream_dyn_resolve_handler;
     ctx->data = r;
@@ -2018,6 +2020,9 @@ failed:
                 "resolver name failed!\n");
         return NGX_DECLINED;
     }
+
+
+    u->dyn_resolve_ctx = ctx;
 
     return NGX_STOP;
 }
@@ -4464,6 +4469,11 @@ ngx_http_upstream_finalize_request(ngx_http_request_t *r,
     if (u->resolved && u->resolved->ctx) {
         ngx_resolve_name_done(u->resolved->ctx);
         u->resolved->ctx = NULL;
+    }
+
+    if (u->dyn_resolve_ctx) {
+        ngx_resolve_name_done(u->dyn_resolve_ctx);
+        u->dyn_resolve_ctx = NULL;
     }
 
     if (u->state && u->state->response_sec) {
