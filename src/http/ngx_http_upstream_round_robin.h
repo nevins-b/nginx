@@ -18,6 +18,7 @@ typedef struct {
     struct sockaddr                *sockaddr;
     socklen_t                       socklen;
     ngx_str_t                       name;
+    ngx_str_t                       host;
     ngx_str_t                       server;
 
     ngx_int_t                       current_weight;
@@ -36,6 +37,10 @@ typedef struct {
 #if (NGX_HTTP_SSL)
     ngx_ssl_session_t              *ssl_session;   /* local to a process */
 #endif
+
+    ngx_uint_t                      color;
+    ngx_uint_t                      dyn_resolve;
+
 } ngx_http_upstream_rr_peer_t;
 
 
@@ -55,6 +60,9 @@ struct ngx_http_upstream_rr_peers_s {
 
     ngx_http_upstream_rr_peers_t   *next;
 
+    ngx_int_t                       ref;
+    ngx_int_t                       stale;
+
     ngx_http_upstream_rr_peer_t     peer[1];
 };
 
@@ -64,6 +72,7 @@ typedef struct {
     ngx_uint_t                      current;
     uintptr_t                      *tried;
     uintptr_t                       data;
+    ngx_http_upstream_rr_peers_t   *dyn_peers;
 } ngx_http_upstream_rr_peer_data_t;
 
 

@@ -52,6 +52,11 @@
 #define NGX_HTTP_UPSTREAM_IGN_XA_CHARSET     0x00000100
 #define NGX_HTTP_UPSTREAM_IGN_VARY           0x00000200
 
+#define NGX_HTTP_UPSTREAM_DYN_RESOLVE_NEXT 0
+#define NGX_HTTP_UPSTREAM_DYN_RESOLVE_STALE 1
+#define NGX_HTTP_UPSTREAM_DYN_RESOLVE_SHUTDOWN 2
+
+
 
 typedef struct {
     ngx_msec_t                       bl_time;
@@ -78,12 +83,16 @@ typedef ngx_int_t (*ngx_http_upstream_init_pt)(ngx_conf_t *cf,
     ngx_http_upstream_srv_conf_t *us);
 typedef ngx_int_t (*ngx_http_upstream_init_peer_pt)(ngx_http_request_t *r,
     ngx_http_upstream_srv_conf_t *us);
+typedef ngx_int_t (*ngx_http_upstream_reinit_pt)(ngx_http_request_t *r,
+    ngx_pool_t *pool, ngx_http_upstream_srv_conf_t *us, void *peers);
 
 
 typedef struct {
     ngx_http_upstream_init_pt        init_upstream;
     ngx_http_upstream_init_peer_pt   init;
+    ngx_http_upstream_reinit_pt      reinit_upstream;
     void                            *data;
+    void                            *dyn_data;
 } ngx_http_upstream_peer_t;
 
 
@@ -94,6 +103,7 @@ typedef struct {
     ngx_uint_t                       weight;
     ngx_uint_t                       max_fails;
     time_t                           fail_timeout;
+    ngx_str_t                        host;
 
     unsigned                         down:1;
     unsigned                         backup:1;
@@ -107,6 +117,10 @@ typedef struct {
 #define NGX_HTTP_UPSTREAM_DOWN          0x0010
 #define NGX_HTTP_UPSTREAM_BACKUP        0x0020
 
+#define NGX_HTTP_UPSTREAM_DR_INIT         0
+#define NGX_HTTP_UPSTREAM_DR_OK_UP        1
+#define NGX_HTTP_UPSTREAM_DR_OK_NOT_UP    2
+#define NGX_HTTP_UPSTREAM_DR_FAILED       3
 
 struct ngx_http_upstream_srv_conf_s {
     ngx_http_upstream_peer_t         peer;
@@ -207,6 +221,10 @@ typedef struct {
     ngx_flag_t                       ssl_verify;
 #endif
 
+    ngx_uint_t                       dyn_resolve;
+    ngx_int_t                        dyn_fallback;
+    time_t                           dyn_fail_timeout;
+    time_t                           dyn_fail_check;
     ngx_str_t                        module;
 } ngx_http_upstream_conf_t;
 
@@ -370,6 +388,12 @@ typedef struct {
     ngx_str_t   value;
     ngx_uint_t  skip_empty;
 } ngx_http_upstream_param_t;
+
+
+typedef struct {
+    ngx_int_t   total;
+    ngx_int_t   domains;
+} ngx_http_upstream_dyn_need_t;
 
 
 ngx_int_t ngx_http_upstream_cookie_variable(ngx_http_request_t *r,

@@ -222,7 +222,7 @@ ngx_module_t  ngx_http_proxy_module;
 static ngx_command_t  ngx_http_proxy_commands[] = {
 
     { ngx_string("proxy_pass"),
-      NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_LMT_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_LMT_CONF|NGX_CONF_TAKE1234,
       ngx_http_proxy_pass,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
@@ -2465,6 +2465,10 @@ ngx_http_proxy_create_loc_conf(ngx_conf_t *cf)
      *     conf->upstream.store_values = NULL;
      *     conf->upstream.ssl_name = NULL;
      *
+     *     conf->upstream.dyn_resolve = 0;
+     *     conf->upstream.dyn_fail_timeout = 0;
+     *     conf->upstream.dyn_fallback = 0;
+     *
      *     conf->method = { 0, NULL };
      *     conf->headers_source = NULL;
      *     conf->headers_set_len = NULL;
@@ -3242,13 +3246,20 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_proxy_loc_conf_t *plcf = conf;
 
-    size_t                      add;
-    u_short                     port;
-    ngx_str_t                  *value, *url;
-    ngx_url_t                   u;
-    ngx_uint_t                  n;
-    ngx_http_core_loc_conf_t   *clcf;
-    ngx_http_script_compile_t   sc;
+    size_t                          add;
+    u_short                         port;
+    ngx_str_t                      *value, *url;
+    ngx_str_t                       host;
+    ngx_url_t                       u;
+    ngx_uint_t                      n;
+    ngx_http_core_loc_conf_t       *clcf;
+    ngx_http_script_compile_t       sc;
+    ngx_http_upstream_srv_conf_t   *uscf;
+    ngx_http_upstream_server_t     *server;
+    ngx_uint_t                      i;
+    ngx_str_t                       s;
+    time_t                          fail_timeout;
+    ngx_int_t                       fallback;
 
     if (plcf->upstream.upstream || plcf->proxy_lengths) {
         return "is duplicate";
@@ -3265,6 +3276,14 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
 
     url = &value[1];
+
+    if (cf->args->nelts == 3) {
+        if (!strncmp((char *)(value[2].data), "dynamic_resolve",value[2].len)) {
+            plcf->upstream.dyn_resolve = 1;
+        } else {
+            return "unknown parameter in proxy_pass";
+        }
+    }
 
     n = ngx_http_script_variables_count(url);
 
@@ -3287,6 +3306,10 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 #if (NGX_HTTP_SSL)
         plcf->ssl = 1;
 #endif
+
+        if (plcf->proxy_lengths) {  /* variable */
+            plcf->upstream.dyn_resolve = 0;
+        }
 
         return NGX_CONF_OK;
     }
@@ -3324,6 +3347,30 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     plcf->upstream.upstream = ngx_http_upstream_add(cf, &u, 0);
     if (plcf->upstream.upstream == NULL) {
         return NGX_CONF_ERROR;
+    }
+
+    if (plcf->upstream.dyn_resolve == 1) {
+        uscf = plcf->upstream.upstream;
+
+        if (ngx_http_upstream_check_is_set(uscf)) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                 "dynamic resolve could not be enabled "
+                 "with upstream check also enabled");
+            return NGX_CONF_ERROR;
+        }
+
+        if (uscf->servers) {
+            server = uscf->servers->elts;
+            for (i = 0; i < uscf->servers->nelts; i++) {
+                host = server[i].host;
+                if (ngx_inet_addr(host.data, host.len) == INADDR_NONE) {
+                    break;
+                }
+            }
+            if (i == uscf->servers->nelts) {
+                plcf->upstream.dyn_resolve = 0;
+            }
+        }
     }
 
     plcf->vars.schema.len = add;
@@ -3771,7 +3818,6 @@ ngx_http_proxy_store(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     return NGX_CONF_OK;
 }
-
 
 #if (NGX_HTTP_CACHE)
 
