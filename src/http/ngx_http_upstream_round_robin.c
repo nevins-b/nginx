@@ -195,7 +195,7 @@ ngx_http_upstream_init_round_robin(ngx_conf_t *cf,
                 peer[n].down = server[i].down;
                 peer[n].server = server[i].name;
                 peer[n].color = color;
-                peer[n].dyn_resolve = server[i].dyn_resolve;
+                peer[n].dyn_resolve = dyn_resolve;
                 n++;
             }
 
@@ -259,6 +259,8 @@ ngx_http_upstream_init_round_robin(ngx_conf_t *cf,
         peer[i].current_weight = 0;
         peer[i].max_fails = 1;
         peer[i].fail_timeout = 10;
+        peers->peer[i].color = 0;
+        peers->peer[i].dyn_resolve = dyn_resolve;
     }
 
     us->peer.data = peers;
