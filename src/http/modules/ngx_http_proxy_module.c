@@ -3284,7 +3284,7 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return "unknown parameter in proxy_pass";
         }
     }
-    
+
     for (i = 2; i < cf->args->nelts; i++) {
 
         if (ngx_strncmp(value[i].data, "dynamic_resolve", 15) == 0) {
@@ -3397,8 +3397,8 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (plcf->upstream.dyn_resolve == 1) {
         uscf = plcf->upstream.upstream;
-
 #if (NGX_HTTP_UPSTREAM_CHECK)
+
         if (ngx_http_upstream_check_is_set(uscf)) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                  "dynamic resolve could not be enabled "
@@ -3406,6 +3406,7 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
 #endif
+
         if (uscf->servers) {
             server = uscf->servers->elts;
             for (i = 0; i < uscf->servers->nelts; i++) {
