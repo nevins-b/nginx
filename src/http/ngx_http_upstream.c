@@ -2061,7 +2061,7 @@ ngx_http_upstream_connect(ngx_http_request_t *r, ngx_http_upstream_t *u)
 
     if (u->conf->dyn_resolve) {
         rc = ngx_http_upstream_connect_and_resolve_peer(&u->peer, r);
-        if (rc == NGX_DONE) {
+        if (rc == NGX_STOP) {
             return;
         }
     } else {
