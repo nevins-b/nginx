@@ -2065,6 +2065,7 @@ failed:
         return _ngx_event_connect_peer(pc);
     }
 
+    u = r->upstream;
     ctx->name = *pc->host;
     ctx->handler = ngx_http_upstream_dyn_resolve_handler;
     ctx->data = r;
@@ -2079,13 +2080,6 @@ failed:
 
     u->dyn_resolve_ctx = ctx;
 
-    if (ngx_resolve_name(ctx) != NGX_OK) {
-      ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-      "resolver name failed!\n");
-      u->dyn_resolve_ctx = NULL;
-      return NGX_DECLINED;
-    }
-    
     return NGX_STOP;
 }
 
