@@ -3346,58 +3346,50 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     url = &value[1];
 
-    if (cf->args->nelts == 3) {
-        if (!strncmp((char *)(value[2].data), "dynamic_resolve",value[2].len)) {
-            plcf->upstream.dyn_resolve = 1;
-        } else {
-            return "unknown parameter in proxy_pass";
-        }
-    }
-
     for (i = 2; i < cf->args->nelts; i++) {
 
-        if (ngx_strncmp(value[i].data, "dynamic_resolve", 15) == 0) {
+      if (ngx_strncmp(value[i].data, "dynamic_resolve", 15) == 0) {
 
-            plcf->upstream.dyn_resolve = 1;
+        plcf->upstream.dyn_resolve = 1;
 
-            continue;
+        continue;
+      }
+
+      if (ngx_strncmp(value[i].data, "dynamic_fail_timeout=", 21) == 0) {
+
+        s.len = value[i].len - 21;
+        s.data = &value[i].data[21];
+
+        fail_timeout = ngx_parse_time(&s, 1);
+
+        if (fail_timeout == (time_t) NGX_ERROR) {
+          return "invalid fail_timeout";
         }
 
-        if (ngx_strncmp(value[i].data, "dynamic_fail_timeout=", 21) == 0) {
+        plcf->upstream.dyn_fail_timeout = fail_timeout;
 
-            s.len = value[i].len - 21;
-            s.data = &value[i].data[21];
+        continue;
+      }
 
-            fail_timeout = ngx_parse_time(&s, 1);
+      if (ngx_strncmp(value[i].data, "dynamic_fallback=", 17) == 0) {
 
-            if (fail_timeout == (time_t) NGX_ERROR) {
-                return "invalid fail_timeout";
-            }
+        s.len = value[i].len - 17;
+        s.data = &value[i].data[17];
 
-            plcf->upstream.dyn_fail_timeout = fail_timeout;
-
-            continue;
+        if (ngx_strncmp(s.data, "next", 4) == 0) {
+          fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_NEXT;
+        } else if (ngx_strncmp(s.data, "stale", 5) == 0) {
+          fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_STALE;
+        } else if (ngx_strncmp(s.data, "shutdown", 8) == 0) {
+          fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_SHUTDOWN;
+        } else {
+          return "invalid fallback action";
         }
 
-        if (ngx_strncmp(value[i].data, "dynamic_fallback=", 17) == 0) {
+        plcf->upstream.dyn_fallback = fallback;
 
-            s.len = value[i].len - 17;
-            s.data = &value[i].data[17];
-
-            if (ngx_strncmp(s.data, "next", 4) == 0) {
-                fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_NEXT;
-            } else if (ngx_strncmp(s.data, "stale", 5) == 0) {
-                fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_STALE;
-            } else if (ngx_strncmp(s.data, "shutdown", 8) == 0) {
-                fallback = NGX_HTTP_UPSTREAM_DYN_RESOLVE_SHUTDOWN;
-            } else {
-                return "invalid fallback action";
-            }
-
-            plcf->upstream.dyn_fallback = fallback;
-
-            continue;
-        }
+        continue;
+      }
     }
 
     n = ngx_http_script_variables_count(url);

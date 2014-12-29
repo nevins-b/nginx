@@ -248,6 +248,17 @@ ngx_http_upstream_init_round_robin(ngx_conf_t *cf,
     peers->total_weight = n;
     peers->name = &us->host;
 
+#if (NGX_HAVE_INET6)
+    dyn_resolve = (ngx_inet6_addr(u.host.data,
+    u.host.len, addr6) == NGX_ERROR) ? 1 : 0;
+    if (dyn_resolve)
+      /* host is not an ipv6 address, check ipv4 */
+
+#endif
+    {
+      dyn_resolve = (ngx_inet_addr(u.host.data,
+      u.host.len) == INADDR_NONE) ? 1 : 0;
+    }
 
     peer = peers->peer;
 
