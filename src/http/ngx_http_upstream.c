@@ -2071,15 +2071,14 @@ failed:
     ctx->data = r;
     ctx->timeout = clcf->resolver_timeout;
 
-    if (ngx_resolve_name(ctx) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "resolver name failed!\n");
-        return NGX_DECLINED;
-    }
-
-
     u->dyn_resolve_ctx = ctx;
 
+    if (ngx_resolve_name(ctx) != NGX_OK) {
+      ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+      "resolver name failed!\n");
+      return NGX_DECLINED;
+    }
+    
     return NGX_STOP;
 }
 
