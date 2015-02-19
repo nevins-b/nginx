@@ -360,6 +360,10 @@ static ngx_http_variable_t  ngx_http_upstream_vars[] = {
       ngx_http_upstream_status_variable, 0,
       NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
+    { ngx_string("upstream_header_time"), NULL,
+      ngx_http_upstream_response_time_variable, 1,
+      NGX_HTTP_VAR_NOCACHEABLE, 0 },
+
     { ngx_string("upstream_response_time"), NULL,
       ngx_http_upstream_response_time_variable, 0,
       NGX_HTTP_VAR_NOCACHEABLE, 0 },
@@ -2109,6 +2113,7 @@ ngx_http_upstream_connect(ngx_http_request_t *r, ngx_http_upstream_t *u)
     tp = ngx_timeofday();
     u->state->response_sec = tp->sec;
     u->state->response_msec = tp->msec;
+    u->state->header_sec = (time_t) NGX_ERROR;
 
     if (u->conf->dyn_resolve) {
         rc = ngx_http_upstream_connect_and_resolve_peer(&u->peer, r);
@@ -2637,6 +2642,7 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
 {
     ssize_t            n;
     ngx_int_t          rc;
+    ngx_time_t        *tp;
     ngx_connection_t  *c;
 
     c = u->peer.connection;
@@ -2756,6 +2762,10 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
     }
 
     /* rc == NGX_OK */
+
+    tp = ngx_timeofday();
+    u->state->header_sec = tp->sec - u->state->response_sec;
+    u->state->header_msec = tp->msec - u->state->response_msec;
 
     if (u->headers_in.status_n >= NGX_HTTP_SPECIAL_RESPONSE) {
 
@@ -3429,7 +3439,10 @@ ngx_http_upstream_send_response(ngx_http_request_t *r, ngx_http_upstream_t *u)
                 }
             }
 
-            ngx_http_file_cache_set_header(r, u->buffer.start);
+            if (ngx_http_file_cache_set_header(r, u->buffer.start) != NGX_OK) {
+                ngx_http_upstream_finalize_request(r, u, NGX_ERROR);
+                return;
+            }
 
         } else {
             u->cacheable = 0;
@@ -3474,6 +3487,12 @@ ngx_http_upstream_send_response(ngx_http_request_t *r, ngx_http_upstream_t *u)
 
     if (p->cacheable) {
         p->temp_file->persistent = 1;
+
+#if (NGX_HTTP_CACHE)
+        if (r->cache && r->cache->file_cache->temp_path) {
+            p->temp_file->path = r->cache->file_cache->temp_path;
+        }
+#endif
 
     } else {
         p->temp_file->log_level = NGX_LOG_WARN;
@@ -5640,8 +5659,18 @@ ngx_http_upstream_response_time_variable(ngx_http_request_t *r,
 
     for ( ;; ) {
         if (state[i].status) {
-            ms = (ngx_msec_int_t)
-                     (state[i].response_sec * 1000 + state[i].response_msec);
+
+            if (data
+                && state[i].header_sec != (time_t) NGX_ERROR)
+            {
+                ms = (ngx_msec_int_t)
+                      (state[i].header_sec * 1000 + state[i].header_msec);
+
+            } else {
+                ms = (ngx_msec_int_t)
+                      (state[i].response_sec * 1000 + state[i].response_msec);
+            }
+
             ms = ngx_max(ms, 0);
             p = ngx_sprintf(p, "%T.%03M", (time_t) ms / 1000, ms % 1000);
 
